@@ -11,8 +11,11 @@
   "dependencies": {
     "axios": "^1.6.8",
     "element-plus": "^2.7.1",
+    "fabric": "^6.6.1",
     "v-viewer": "^3.0.13",
     "vue": "^3.5.13",
+    "vue-cropper": "^0.6.5",
+    "vue-konva": "^3.2.0",
     "vue-router": "^4.3.2"
   },
   "devDependencies": {
