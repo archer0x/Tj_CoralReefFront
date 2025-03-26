@@ -8,46 +8,41 @@
           <p>查看和修改您的个人资料</p>
         </div>
 
-        <el-form 
-          :model="userForm" 
-          ref="userFormRef" 
-          :rules="userRules" 
-          label-width="80px" 
-          class="user-form"
-        >
+        <el-form :model="userForm" ref="userFormRef" :rules="userRules" label-width="80px" class="user-form">
           <div class="user-info-layout">
+            <!-- 修改头像部分的代码 -->
             <div class="avatar-container">
-              <el-avatar 
-                :size="100" 
-                :src="userForm.avatar || defaultAvatar" 
-                class="user-avatar"
-              />
-              <el-button 
-                type="primary" 
-                size="small" 
-                class="change-avatar-btn"
-                @click="handleAvatarUpload"
-              >
+              <el-avatar :size="100" :src="userForm.avatar || defaultAvatar" class="user-avatar" />
+              <el-button type="primary" size="small" class="change-avatar-btn" @click="showAvatarSelector">
                 更换头像
               </el-button>
-              <input 
-                type="file" 
-                ref="avatarInput" 
-                style="display: none;" 
-                accept="image/*" 
-                @change="onAvatarSelected"
-              />
             </div>
+
+            <!-- 添加头像选择对话框 -->
+            <el-dialog v-model="avatarDialogVisible" title="选择头像" width="500px" center>
+              <div class="avatar-selector">
+                <div v-for="(avatar, index) in avatarOptions" :key="index" class="avatar-option"
+                  :class="{ 'selected': selectedAvatarIndex === index }" @click="selectAvatar(index)">
+                  <el-avatar :size="60" :src="avatar" />
+                </div>
+              </div>
+              <template #footer>
+                <span class="dialog-footer">
+                  <el-button @click="avatarDialogVisible = false">取消</el-button>
+                  <el-button type="primary" @click="confirmAvatarChange">确定</el-button>
+                </span>
+              </template>
+            </el-dialog>
 
             <div class="form-fields">
               <el-form-item label="用户名" prop="username">
                 <el-input v-model="userForm.username" placeholder="请输入用户名"></el-input>
               </el-form-item>
-              
+
               <el-form-item label="邮箱" prop="email">
                 <el-input v-model="userForm.email" placeholder="请输入邮箱"></el-input>
               </el-form-item>
-              
+
               <el-form-item label="电话" prop="phone">
                 <el-input v-model="userForm.phone" placeholder="请输入电话"></el-input>
               </el-form-item>
@@ -67,41 +62,23 @@
           <h2>修改密码</h2>
           <p>定期修改密码可以提高账户安全性</p>
         </div>
-        
-        <el-form 
-          :model="passwordForm" 
-          ref="passwordFormRef" 
-          :rules="passwordRules" 
-          label-width="100px" 
-          class="password-form"
-        >
+
+        <el-form :model="passwordForm" ref="passwordFormRef" :rules="passwordRules" label-width="100px"
+          class="password-form">
           <el-form-item label="当前密码" prop="currentPassword">
-            <el-input 
-              v-model="passwordForm.currentPassword" 
-              type="password" 
-              placeholder="请输入当前密码" 
-              show-password
-            ></el-input>
+            <el-input v-model="passwordForm.currentPassword" type="password" placeholder="请输入当前密码"
+              show-password></el-input>
           </el-form-item>
-          
+
           <el-form-item label="新密码" prop="newPassword">
-            <el-input 
-              v-model="passwordForm.newPassword" 
-              type="password" 
-              placeholder="请输入新密码" 
-              show-password
-            ></el-input>
+            <el-input v-model="passwordForm.newPassword" type="password" placeholder="请输入新密码" show-password></el-input>
           </el-form-item>
-          
+
           <el-form-item label="确认新密码" prop="confirmPassword">
-            <el-input 
-              v-model="passwordForm.confirmPassword" 
-              type="password" 
-              placeholder="请再次输入新密码" 
-              show-password
-            ></el-input>
+            <el-input v-model="passwordForm.confirmPassword" type="password" placeholder="请再次输入新密码"
+              show-password></el-input>
           </el-form-item>
-          
+
           <el-form-item>
             <el-button type="primary" @click="changePassword" :loading="changingPwd">修改密码</el-button>
             <el-button @click="resetPasswordForm">重置</el-button>
@@ -128,12 +105,16 @@
         </div> -->
 
         <div v-if="loading" class="loading-container">
-          <el-icon class="loading-icon"><Loading /></el-icon>
+          <el-icon class="loading-icon">
+            <Loading />
+          </el-icon>
           <span>加载中...</span>
         </div>
 
         <div v-else-if="userImages.length === 0" class="empty-images">
-          <el-icon><Picture /></el-icon>
+          <el-icon>
+            <Picture />
+          </el-icon>
           <span>暂无图片</span>
         </div>
 
@@ -143,14 +124,10 @@
               <div class="image-container">
                 <img :src="image.url" class="image-preview" @click="showImageDetails(image)" />
                 <div class="image-actions">
-                  <el-button 
-                    type="danger" 
-                    circle 
-                    size="small" 
-                    @click="confirmDeleteImage(image)"
-                    class="delete-btn"
-                  >
-                    <el-icon><Delete /></el-icon>
+                  <el-button type="danger" circle size="small" @click="confirmDeleteImage(image)" class="delete-btn">
+                    <el-icon>
+                      <Delete />
+                    </el-icon>
                   </el-button>
                 </div>
               </div>
@@ -163,12 +140,7 @@
         </el-row>
 
         <!-- 图片删除确认对话框 -->
-        <el-dialog
-          v-model="deleteDialogVisible"
-          title="确认删除"
-          width="30%"
-          center
-        >
+        <el-dialog v-model="deleteDialogVisible" title="确认删除" width="30%" center>
           <span>确定要删除这张图片吗？此操作不可恢复。</span>
           <template #footer>
             <span class="dialog-footer">
@@ -179,12 +151,7 @@
         </el-dialog>
 
         <!-- 图片详情对话框 -->
-        <el-dialog
-          v-model="imageDetailsVisible"
-          title="图片详情"
-          width="60%"
-          class="image-details-dialog"
-        >
+        <el-dialog v-model="imageDetailsVisible" title="图片详情" width="60%" class="image-details-dialog">
           <div class="image-details-content">
             <div class="details-image-container">
               <img :src="selectedImage?.url" class="details-image" />
@@ -321,28 +288,28 @@ const fetchUserInfo = async () => {
       .split('; ')
       .find(row => row.startsWith('username='))
       ?.split('=')[1];
-    
+
     if (!username) {
       ElMessage.error('无法获取当前用户信息');
       return;
     }
-    
+
     // 使用新接口获取用户信息
     const response = await api.get(`/users/findOne/${username}`);
-    
+
     // 检查响应结构
     if (response.data && response.data.data) {
       // 保存完整的用户数据
       userData.value = response.data.data;
-      
+
       // 填充表单显示数据
       userForm.username = userData.value.username;
       userForm.email = userData.value.email || '';
       userForm.phone = userData.value.phone || '';
-      
+
       // 头像暂时使用默认头像或从其他地方获取
       userForm.avatar = userData.value.avatar || defaultAvatar;
-      
+
       console.log('获取到的用户信息:', userData.value);
     } else {
       ElMessage.warning('获取用户信息格式不正确');
@@ -381,10 +348,10 @@ const saveUserInfo = async () => {
         userData.value.username = userForm.username;
         userData.value.email = userForm.email;
         userData.value.phone = userForm.phone;
-        
+
         // 使用与 admin.vue 中相同的方式发送完整用户对象
         await api.post('/users/updateOne', userData.value);
-        
+
         ElMessage.success('个人信息更新成功');
       } catch (error) {
         ElMessage.error('更新失败，请重试');
@@ -410,29 +377,29 @@ const changePassword = async () => {
       try {
         // 保存原始密码用于恢复
         const originalPassword = userData.value.password;
-        
+
         // 更新密码字段
         userData.value.password = passwordForm.newPassword;
-        
+
         // 使用与个人信息相同的接口更新，添加当前密码验证
         await api.post('/users/updateOne', {
           ...userData.value,
           // oldPassword: passwordForm.currentPassword
         });
-        
+
         ElMessage.success('密码修改成功');
         resetPasswordForm();
       } catch (error) {
         ElMessage.error('密码修改失败，请检查当前密码是否正确');
         console.error('密码修改失败:', error);
-        
+
         // 恢复原密码字段
         userData.value.password = originalPassword;
       } finally {
         changingPwd.value = false;
       }
     }
-    });
+  });
 };
 
 // 重置密码表单
@@ -440,53 +407,48 @@ const resetPasswordForm = () => {
   passwordFormRef.value.resetFields();
 };
 
-// 点击更换头像按钮
-const handleAvatarUpload = () => {
-  avatarInput.value.click();
+// 预设头像选项
+const avatarOptions = [
+  'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png',
+  'https://avatars.githubusercontent.com/u/10731096',
+  'https://gw.alipayobjects.com/zos/antfincdn/efFD%24IOql2/weixintupian_20170331104822.jpg',
+  'https://gw.alipayobjects.com/zos/antfincdn/XAosXuNZyF/BiazfanxmamNRoxxVxka.png',
+  'https://zos.alipayobjects.com/rmsportal/ODTLcjxAfvqbxHnVXCYX.png',
+  'https://img.yzcdn.cn/vant/cat.jpeg',
+  'https://randomuser.me/api/portraits/men/1.jpg'
+];
+
+// 头像选择对话框状态
+const avatarDialogVisible = ref(false);
+const selectedAvatarIndex = ref(-1);
+const tempSelectedAvatar = ref('');
+
+// 显示头像选择器
+const showAvatarSelector = () => {
+  // 找到当前头像在选项中的索引，如果有的话
+  const currentIndex = avatarOptions.findIndex(avatar => avatar === userForm.avatar);
+  selectedAvatarIndex.value = currentIndex >= 0 ? currentIndex : -1;
+  tempSelectedAvatar.value = userForm.avatar;
+  avatarDialogVisible.value = true;
 };
 
-// 选择头像后的处理
-const onAvatarSelected = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  // 验证文件类型和大小
-  const isImage = /^image\//.test(file.type);
-  const isLt2M = file.size / 1024 / 1024 < 2;
-  
-  if (!isImage) {
-    ElMessage.error('请上传图片文件');
-    return;
-  }
-  if (!isLt2M) {
-    ElMessage.error('图片大小不能超过 2MB');
-    return;
-  }
-  
-  // 预览头像
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    userForm.avatar = e.target.result;
-  };
-  reader.readAsDataURL(file);
-  
-  // 上传头像到服务器
-  const formData = new FormData();
-  formData.append('avatar', file);
-  
-  try {
-    // 模拟API请求: POST /api/user/avatar
-    const response = await api.post('/api/user/avatar', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
-    userForm.avatar = response.data.avatarUrl;
+// 选择头像
+const selectAvatar = (index) => {
+  selectedAvatarIndex.value = index;
+  tempSelectedAvatar.value = avatarOptions[index];
+};
+
+// 确认头像修改
+const confirmAvatarChange = () => {
+  if (selectedAvatarIndex.value >= 0) {
+    userForm.avatar = avatarOptions[selectedAvatarIndex.value];
+    // 在实际应用中，可能需要将头像选择同步到用户数据
+    userData.value.avatar = userForm.avatar;
+
+    // 如果需要，也可以保存到服务器，但这里我们只做前端效果
     ElMessage.success('头像更新成功');
-  } catch (error) {
-    ElMessage.error('头像上传失败');
-    console.error('头像上传失败:', error);
   }
+  avatarDialogVisible.value = false;
 };
 
 // 查看图片详情
@@ -504,17 +466,17 @@ const confirmDeleteImage = (image) => {
 // 删除图片 - 修改为根据图片名称删除
 const deleteImage = async () => {
   if (!selectedImageForDelete.value) return;
-  
+
   deleting.value = true;
   try {
     // 使用正确的API参数格式
     await api.delete('/api/data/delete_photo', {
       params: { photoname: selectedImageForDelete.value.name }
     });
-    
+
     // 从列表中移除
     userImages.value = userImages.value.filter(img => img.name !== selectedImageForDelete.value.name);
-    
+
     ElMessage.success('图片删除成功');
     deleteDialogVisible.value = false;
   } catch (error) {
@@ -529,7 +491,7 @@ const deleteImage = async () => {
 onMounted(() => {
   // 获取用户信息
   fetchUserInfo();
-  
+
   // 获取用户相关图片
   nextTick(() => {
     fetchUserImages();
@@ -645,8 +607,13 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 图片卡片样式 */
@@ -759,20 +726,52 @@ onMounted(() => {
   color: #303133;
 }
 
+/* 在 style 部分添加以下内容 */
+
+/* 头像选择器样式 */
+.avatar-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.avatar-option {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.avatar-option:hover {
+  background-color: #f5f7fa;
+  transform: translateY(-3px);
+}
+
+.avatar-option.selected {
+  background-color: #ecf5ff;
+  border: 2px solid #409EFF;
+}
+
+.avatar-option .el-avatar {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 /* 响应式调整 */
 @media (max-width: 768px) {
   .user-info-layout {
     flex-direction: column;
   }
-  
+
   .avatar-container {
     margin-bottom: 24px;
   }
-  
+
   .image-details-content {
     flex-direction: column;
   }
-  
+
   .details-image-container {
     margin-bottom: 16px;
   }
