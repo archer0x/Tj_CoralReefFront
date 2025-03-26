@@ -7,6 +7,7 @@ import HomePage from './components/HomePage.vue';
 import OtherPage from './components/OtherPage.vue';
 import DisplayPage from './components/DisplayPage.vue';
 import test from './components/test.vue';
+import Admin from './components/Admin.vue';
 import LoginView from './views/LoginView.vue';
 import MainLayout from './views/MainLayout.vue';
 
@@ -19,7 +20,8 @@ const routes = [
             { path: 'home', component: HomePage },
             { path: 'other', component: OtherPage },
             { path: 'display', component: DisplayPage },
-            { path: 'test', component: test }
+            { path: 'test', component: test },
+            { path: 'admin', component: Admin }
         ]
     }
 ];

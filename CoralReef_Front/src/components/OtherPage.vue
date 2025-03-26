@@ -27,10 +27,16 @@
         <!-- 检测控制区域 -->
         <div class="detection-section">
             <div class="detection-header">
-                <el-button type="primary" class="detection-button" @click="startDetection">
-                    开始批量检测
-                    <el-icon class="el-icon--right"><Upload /></el-icon>
-                </el-button>
+                <div class="button-group">
+                    <el-button type="primary" class="detection-button" @click="startDetection">
+                        开始批量检测
+                        <el-icon class="el-icon--right"><Upload /></el-icon>
+                    </el-button>
+                    
+                    <el-button type="success" @click="saveImages" :loading="saving" class="save-button">
+                        保存图片
+                    </el-button>
+                </div>
                 
                 <div class="progress-container">
                     <el-progress 
@@ -139,14 +145,16 @@ import {
     Upload, 
     Document, 
     View, 
-    Download 
+    Download
 } from "@element-plus/icons-vue";
+import { ElMessage } from 'element-plus';
 import api from '@/utils/api'
 
 const parentBorder = ref(true);
 const tableData = ref([]);
 const showTable = ref(false);  // 控制表格显示的状态
 const progressPercentage = ref(0);
+const saving = ref(false);
 
 const startDetection = async () => {
     // 重置进度条
@@ -229,6 +237,22 @@ const downloadImage = (row) => {
             link.click();
             document.body.removeChild(link);
         });
+};
+
+const saveImages = async () => {
+    saving.value = true;
+    try {
+        // 调用保存图片接口
+        await api.post('http://localhost:8080/api/data/save_photo');
+        
+        // 显示成功消息
+        ElMessage.success('保存成功');
+    } catch (error) {
+        console.error('保存图片失败:', error);
+        ElMessage.error('保存失败，请重试');
+    } finally {
+        saving.value = false;
+    }
 };
 </script>
 
@@ -335,9 +359,22 @@ const downloadImage = (row) => {
     gap: 20px;
 }
 
+.button-group {
+    display: flex;
+    gap: 12px;
+}
+
 .detection-button {
     min-width: 140px;
     height: 40px;
+}
+
+.save-button {
+    min-width: 120px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .progress-container {
@@ -479,8 +516,13 @@ const downloadImage = (row) => {
         align-items: flex-start;
     }
     
-    .detection-button {
+    .button-group {
+        width: 100%;
         margin-bottom: 16px;
+    }
+    
+    .detection-button, .save-button {
+        flex: 1;
     }
     
     .custom-table :deep(.el-table__expanded-cell) {

@@ -59,6 +59,14 @@
         >
           发送截取图片到YOLO
         </el-button>
+        <el-button 
+          type="warning" 
+          @click="saveImages" 
+          :loading="saving"
+          class="save-button"
+        >
+          保存图片
+        </el-button>
       </div>
 
       <div class="image-container">
@@ -100,7 +108,8 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
-import { UploadFilled, Upload, Loading, Picture } from "@element-plus/icons-vue";
+import { UploadFilled, Upload, Loading, Picture} from "@element-plus/icons-vue";
+import { ElMessage } from 'element-plus';
 import api from '@/utils/api'
 
 // 状态变量
@@ -116,6 +125,7 @@ const originalImageName = ref(''); // 用于存储原始图片名称
 
 const imageUrl = ref(""); // 用于存储上传后的图片路径
 const progressPercentage = ref(0); //进度条响应变量
+const saving = ref(false); // 新增保存状态
 
 // DOM引用
 const canvasRef = ref(null);
@@ -341,6 +351,23 @@ const sendToYolo = async () => {
   }
 };
 
+// 新增保存图片功能
+const saveImages = async () => {
+    saving.value = true;
+    try {
+        // 调用保存图片接口
+        await api.post('http://localhost:8080/api/data/save_photo');
+        
+        // 显示成功消息
+        ElMessage.success('保存成功');
+    } catch (error) {
+        console.error('保存图片失败:', error);
+        ElMessage.error('保存失败，请重试');
+    } finally {
+        saving.value = false;
+    }
+};
+
 // 页面加载时自动加载图片
 onMounted(() => {
   loadOriginalImage();
@@ -498,8 +525,9 @@ onMounted(() => {
 
 .controls {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   margin-bottom: 24px;
+  flex-wrap: wrap; /* 确保在小屏幕上能够换行 */
 }
 
 .image-container {
@@ -588,5 +616,24 @@ canvas {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* 新增样式 */
+.save-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .controls .el-button {
+    margin-bottom: 8px;
+  }
 }
 </style>

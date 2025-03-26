@@ -1,7 +1,7 @@
 <template>
     <div id="app" class="main-layout">
         <el-row>
-            <el-col :span="4">
+            <el-col :span="4" v-if="!isAdminRoute">
                 <div class="sidebar-container">
                     <div class="sidebar-header">
                         <div class="logo">
@@ -9,45 +9,51 @@
                             <span>珊瑚礁系统</span>
                         </div>
                     </div>
-                    <el-menu default-active="1" class="el-menu-vertical-demo custom-menu" @select="handleMenuSelect" background-color="#303030" text-color="#fff" active-text-color="#409EFF">
+                    <el-menu default-active="1" class="el-menu-vertical-demo custom-menu" @select="handleMenuSelect"
+                        background-color="#303030" text-color="#fff" active-text-color="#409EFF">
                         <el-menu-item index="1" class="custom-menu-item">
-                            <el-icon><icon-upload /></el-icon>
+                            <el-icon>
+                                <HomeFilled />
+                            </el-icon>
                             <span>上传图片</span>
                         </el-menu-item>
                         <el-menu-item index="2" class="custom-menu-item">
-                            <el-icon><icon-picture /></el-icon>
+                            <el-icon>
+                                <PictureFilled />
+                            </el-icon>
                             <span>历史图片</span>
                         </el-menu-item>
                         <el-menu-item index="3" class="custom-menu-item">
-                            <el-icon><icon-data-analysis /></el-icon>
+                            <el-icon>
+                                <StarFilled />
+                            </el-icon>
                             <span>结果展示</span>
                         </el-menu-item>
                         <el-menu-item index="4" class="custom-menu-item">
-                            <el-icon><icon-promotion /></el-icon>
+                            <el-icon>
+                                <UserFilled />
+                            </el-icon>
                             <span>个人信息</span>
                         </el-menu-item>
                     </el-menu>
                 </div>
             </el-col>
-            <el-col :span="20">
+            <el-col :span="isAdminRoute ? 24 : 20">
                 <div class="content-area">
                     <div class="header-bar">
                         <div class="page-title">珊瑚礁白化智能识别系统</div>
                         <div class="header-actions">
-                            <el-input 
-                                placeholder="" 
-                                prefix-icon="el-icon-search"
-                                class="search-input"
-                                size="small">
-                            </el-input>
-                            <el-dropdown>
+                            <el-dropdown @command="handleCommand">
                                 <span class="user-dropdown">
-                                    管理员 <i class="el-icon-arrow-down"></i>
+                                    <el-icon class="user-icon">
+                                        <User />
+                                    </el-icon>
+                                    <i class="el-icon-arrow-down"></i>
                                 </span>
                                 <template #dropdown>
                                     <el-dropdown-menu>
-                                        <el-dropdown-item>个人信息</el-dropdown-item>
-                                        <el-dropdown-item>退出登录</el-dropdown-item>
+                                        <el-dropdown-item command="profile">个人信息</el-dropdown-item>
+                                        <el-dropdown-item command="logout">退出登录</el-dropdown-item>
                                     </el-dropdown-menu>
                                 </template>
                             </el-dropdown>
@@ -63,26 +69,33 @@
 </template>
 
 <script>
-// import { 
-//     IconUpload, 
-//     IconPicture, 
-//     IconDataAnalysis, 
-//     IconPromotion 
-// } from '@element-plus/icons-vue';
+import {
+    User,
+    HomeFilled,
+    PictureFilled,
+    StarFilled,
+    UserFilled
+} from '@element-plus/icons-vue';
 
 export default {
     name: 'App',
-    // components: {
-    //     IconUpload,
-    //     IconPicture,
-    //     IconDataAnalysis,
-    //     IconPromotion
-    // },
+    components: {
+        User,
+        HomeFilled,
+        PictureFilled,
+        StarFilled,
+        UserFilled
+    },
+    computed: {
+        isAdminRoute() {
+            return this.$route.path === '/app/admin';
+        }
+    },
     methods: {
         handleMenuSelect(index) {
             switch (index) {
                 case '1':
-                    this.$router.push('/app/home');  // 修改路径
+                    this.$router.push('/app/home');
                     break;
                 case '2':
                     this.$router.push('/app/other');
@@ -91,10 +104,53 @@ export default {
                     this.$router.push('/app/display');
                     break;
                 case '4':
-                    this.$router.push('/app/test');
+                    // this.$router.push('/app/test');
+                    // 根据用户名判断跳转路由
+                    const username = document.cookie
+                        .split('; ')
+                        .find(row => row.startsWith('username='))
+                        ?.split('=')[1];
+
+                    if (username === 'root') {
+                        this.$router.push('/app/admin');
+                    } else {
+                        this.$router.push('/app/test');
+                    }
                     break;
                 default:
                     break;
+            }
+        },
+
+        handleCommand(command) {
+            if (command === 'profile') {
+                // this.$router.push('/app/test');
+                // 根据用户名判断跳转路由
+                const username = document.cookie
+                    .split('; ')
+                    .find(row => row.startsWith('username='))
+                    ?.split('=')[1];
+
+                if (username === 'root') {
+                    this.$router.push('/app/admin');
+                } else {
+                    this.$router.push('/app/test');
+                }
+            } else if (command === 'logout') {
+                this.logout();
+            }
+        },
+
+        async logout() {
+            try {
+                await fetch('http://localhost:8080/api/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                });
+                window.location.href = 'http://localhost:5173/';
+            } catch (error) {
+                console.error('退出登录失败:', error);
+                window.location.href = 'http://localhost:5173/';
             }
         }
     },
@@ -226,15 +282,49 @@ export default {
 }
 
 .user-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     cursor: pointer;
-    font-size: 14px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.user-dropdown:focus,
+.user-dropdown:active {
+    outline: none;
+    /* 移除点击时的边框 */
+}
+
+.user-icon {
+    font-size: 20px;
     color: #606266;
 }
+
+.user-icon {
+    font-size: 28px;
+    /* 增大图标 */
+    color: #606266;
+    background-color: #f2f6fc;
+    border-radius: 50%;
+    padding: 8px;
+    /* 调整内边距，使其更圆 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 
 .main-content {
     flex: 1;
     padding: 24px;
     overflow-y: auto;
     background-color: #f5f7fa;
+}
+
+/* 添加 admin 路由下的特殊样式 */
+.main-layout .content-area {
+    transition: all 0.3s ease;
 }
 </style>

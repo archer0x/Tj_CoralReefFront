@@ -57,31 +57,37 @@
             <i class="el-icon-phone"></i>
             <input type="tel" placeholder="Phone Number" v-model="registerData.phone">
           </div>
-          <!-- 保留验证码部分（如果需要） -->
+          <!-- 修改验证码部分 -->
           <div class="input-field" style="display: flex">
-            <input style="margin-left: 10px" type="code" placeholder="Code">
-            <button id="send-sms-code-btn" style=" padding: 0 0;
-                      background-color: #247fe0;
-                      color: #fff;
-                      border: none;
-                      border-radius: 40px;
-                      cursor: pointer;
-                      flex: 1;
-                      justify-content: flex-end;">获取邮箱验证码
+            <input 
+              style="margin-left: 10px" 
+              type="text" 
+              placeholder="验证码" 
+              v-model="registerData.code">
+            <button 
+              id="send-sms-code-btn" 
+              style="padding: 0 0;
+                    background-color: #247fe0;
+                    color: #fff;
+                    border: none;
+                    border-radius: 40px;
+                    cursor: pointer;
+                    flex: 1;
+                    justify-content: flex-end;"
+              @click="sendVerificationCode">获取邮箱验证码
             </button>
-            <div id="countdown" style="
-                       display: none;
-                       padding: 0 0;
-                       background-color: #f0f0f0;
-                       color: #343232;
-                       border: none;
-                       border-radius: 40px;
-                       cursor: pointer; flex: 1;
-                       justify-content: flex-end;
-                       margin-top: 15px;
-                       margin-right: 5px;
-                      ">
-
+            <div 
+              id="countdown" 
+              style="display: none;
+                     padding: 0 0;
+                     background-color: #f0f0f0;
+                     color: #343232;
+                     border: none;
+                     border-radius: 40px;
+                     cursor: pointer; flex: 1;
+                     justify-content: flex-end;
+                     margin-top: 15px;
+                     margin-right: 5px;">
             </div>
           </div>
           <input type="submit" value="Sign up" class="btn" style="margin-bottom: 50px;">
@@ -115,7 +121,7 @@
           </p>
           <button class="btn transparent" id="sign-up-btn"> Sign up</button>
         </div>
-        <img src="../assets/pictures/teacher.svg" class="image">
+        <img src="../assets/pictures/register.svg" class="image">
 
       </div>
       <div class="panel right-panel">
@@ -128,7 +134,7 @@
           </p>
           <button class="btn transparent" id="sign-in-btn">Login</button>
         </div>
-        <img src="../assets/pictures/login.png" class="image">
+        <img src="../assets/pictures/login.svg" class="image">
 
       </div>
     </div>
@@ -321,21 +327,25 @@ form.sign-up-form {
 .panel {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-around;
   text-align: center;
   z-index: 7;
-
 }
 
 .left-panel {
   pointer-events: all;
   padding: 3rem 17% 2rem 12%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .panel .content {
   color: #fff;
   transition: .9s .6s ease-in-out;
+  width: 80%;
+  margin-top: 40px;
 }
 
 .panel h3 {
@@ -350,7 +360,7 @@ form.sign-up-form {
 }
 
 .btn.transparent {
-  margin: 0;
+  margin: 0 0 30px 0;
   background: none;
   border: 2px solid#fff;
   width: 130px;
@@ -362,11 +372,16 @@ form.sign-up-form {
 .right-panel {
   padding: 3rem 12% 2rem 17%;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 .image {
-  width: 100%;
+  width: 70%;
   transition: 1.1s .4s ease-in-out;
+  margin-top: 20px;
+  align-self: center;
 }
 
 .right-panel .content,
@@ -439,10 +454,12 @@ export default {
         username: '',
         password: '',
         email: '',
-        phone: ''
+        phone: '',
+        code: '' // 添加验证码字段
       },
 
-      errorMessage: ''
+      errorMessage: '',
+      countdown: null // 添加倒计时变量
     };
   },
   mounted() {
@@ -518,7 +535,7 @@ export default {
             }
           } else {
             // 如果状态码不是200，表示登录失败，弹出错误提示
-            this.$alert("登录失败", {
+            this.$alert("登录失败，服务器故障中", {
               type: "error",
             });
           }
@@ -526,26 +543,108 @@ export default {
         .catch(error => {
           // 处理请求错误
           console.error('Error fetching products:', error);
-          this.$alert("请求出错", {
+          this.$alert("登录失败,账号被弃用，请注册新账号", {
             type: "error",
           });
         });
     }
     ,
     handleRegister() {
-      axios.post('http://localhost:8080/users/createOne', this.registerData)
+      // 检查必填字段
+      if (!this.registerData.username || !this.registerData.password || 
+          !this.registerData.email || !this.registerData.phone || 
+          !this.registerData.code) {
+        this.$alert("请填写所有必填字段，包括验证码", {
+          type: "warning",
+        });
+        return;
+      }
+
+      // 准备发送数据，按照 Email 类的结构
+      const emailData = {
+        username: this.registerData.username,
+        password: this.registerData.password,
+        email: this.registerData.email,
+        phone: this.registerData.phone,
+        code: this.registerData.code
+      };
+
+      // 发送注册请求
+      api.post('http://localhost:8080/users/createOne', emailData)
         .then(response => {
           if (response.status === 200) {
-            alert('注册成功！');
-            // 自动切换到登录界面
-            const container = document.querySelector(".container");
-            container.classList.remove("sign-up-mode");
+            this.$alert('注册成功！', {
+              type: 'success',
+              callback: () => {
+                // 自动切换到登录界面
+                const container = document.querySelector(".container");
+                container.classList.remove("sign-up-mode");
+              }
+            });
           }
         })
         .catch(error => {
           console.error('Registration failed:', error);
-          this.errorMessage = error.response?.data?.message || 'Registration failed';
+          this.$alert(error.response?.data?.message || '注册失败，请稍后再试', {
+            type: "error",
+          });
         });
+    },
+    sendVerificationCode(event) {
+      event.preventDefault();
+      
+      // 检查邮箱是否已填写
+      if (!this.registerData.email) {
+        this.$alert("请先填写邮箱", {
+          type: "warning",
+        });
+        return;
+      }
+      
+      // 发送验证码请求
+      api.post('http://localhost:8080/api/email/sendEmail', this.registerData.email, {
+        headers: {
+          'Content-Type': 'text/plain'  // 因为后端接收的是 String
+        }
+      })
+      .then(response => {
+        if (response.status === 200) {
+          // 隐藏发送按钮，显示倒计时
+          document.getElementById('send-sms-code-btn').style.display = 'none';
+          document.getElementById('countdown').style.display = 'inline-block';
+          this.startCountdown(60);
+          
+          this.$message({
+            message: '验证码已发送至您的邮箱',
+            type: 'success'
+          });
+        }
+      })
+      .catch(error => {
+        console.error('发送验证码失败:', error);
+        this.$alert(error.response?.data?.message || '发送验证码失败，请稍后再试', {
+          type: "error",
+        });
+      });
+    },
+    startCountdown(seconds) {
+      const countdownEl = document.getElementById('countdown');
+      countdownEl.innerText = seconds + ' 秒后重新发送';
+      
+      if (this.countdown) {
+        clearInterval(this.countdown);
+      }
+      
+      this.countdown = setInterval(() => {
+        seconds--;
+        if (seconds > 0) {
+          countdownEl.innerText = seconds + ' 秒后重新发送';
+        } else {
+          clearInterval(this.countdown);
+          document.getElementById('send-sms-code-btn').style.display = 'inline-block';
+          countdownEl.style.display = 'none';
+        }
+      }, 1000);
     },
     setCookie(name, value, days) {
       const date = new Date();

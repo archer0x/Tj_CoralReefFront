@@ -261,6 +261,19 @@ const selectedImageForDelete = ref(null);
 const imageDetailsVisible = ref(false);
 const deleteDialogVisible = ref(false);
 
+// 添加用户完整信息对象
+const userData = ref({
+  id: '',
+  username: '',
+  password: '',
+  email: '',
+  phone: '',
+  enabled: 1,
+  createTime: null,
+  updateTime: null,
+  delFlag: 0
+});
+
 // 表单验证规则
 const userRules = {
   username: [
@@ -283,7 +296,7 @@ const passwordRules = {
   ],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能小于6个字符', trigger: 'blur' }
+    { min: 3, message: '密码长度不能小于3个字符', trigger: 'blur' }
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -303,13 +316,37 @@ const passwordRules = {
 // 初始化加载用户信息
 const fetchUserInfo = async () => {
   try {
-    // 模拟API请求: GET /api/user/profile
-    const response = await api.get('/api/user/profile');
-    const { username, email, phone, avatar } = response.data;
-    userForm.username = username;
-    userForm.email = email;
-    userForm.phone = phone;
-    userForm.avatar = avatar;
+    // 从 cookie 获取当前用户名
+    const username = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('username='))
+      ?.split('=')[1];
+    
+    if (!username) {
+      ElMessage.error('无法获取当前用户信息');
+      return;
+    }
+    
+    // 使用新接口获取用户信息
+    const response = await api.get(`/users/findOne/${username}`);
+    
+    // 检查响应结构
+    if (response.data && response.data.data) {
+      // 保存完整的用户数据
+      userData.value = response.data.data;
+      
+      // 填充表单显示数据
+      userForm.username = userData.value.username;
+      userForm.email = userData.value.email || '';
+      userForm.phone = userData.value.phone || '';
+      
+      // 头像暂时使用默认头像或从其他地方获取
+      userForm.avatar = userData.value.avatar || defaultAvatar;
+      
+      console.log('获取到的用户信息:', userData.value);
+    } else {
+      ElMessage.warning('获取用户信息格式不正确');
+    }
   } catch (error) {
     ElMessage.error('获取用户信息失败');
     console.error('获取用户信息失败:', error);
@@ -340,8 +377,14 @@ const saveUserInfo = async () => {
     if (valid) {
       saving.value = true;
       try {
-        // 模拟API请求: PUT /api/user/profile
-        await api.put('/api/user/profile', userForm);
+        // 同步表单数据到完整用户对象
+        userData.value.username = userForm.username;
+        userData.value.email = userForm.email;
+        userData.value.phone = userForm.phone;
+        
+        // 使用与 admin.vue 中相同的方式发送完整用户对象
+        await api.post('/users/updateOne', userData.value);
+        
         ElMessage.success('个人信息更新成功');
       } catch (error) {
         ElMessage.error('更新失败，请重试');
@@ -365,21 +408,31 @@ const changePassword = async () => {
     if (valid) {
       changingPwd.value = true;
       try {
-        // 模拟API请求: POST /api/user/change-password
-        await api.post('/api/user/change-password', {
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword
+        // 保存原始密码用于恢复
+        const originalPassword = userData.value.password;
+        
+        // 更新密码字段
+        userData.value.password = passwordForm.newPassword;
+        
+        // 使用与个人信息相同的接口更新，添加当前密码验证
+        await api.post('/users/updateOne', {
+          ...userData.value,
+          // oldPassword: passwordForm.currentPassword
         });
+        
         ElMessage.success('密码修改成功');
         resetPasswordForm();
       } catch (error) {
         ElMessage.error('密码修改失败，请检查当前密码是否正确');
         console.error('密码修改失败:', error);
+        
+        // 恢复原密码字段
+        userData.value.password = originalPassword;
       } finally {
         changingPwd.value = false;
       }
     }
-  });
+    });
 };
 
 // 重置密码表单
@@ -436,24 +489,6 @@ const onAvatarSelected = async (event) => {
   }
 };
 
-// 搜索图片
-const searchImages = async () => {
-  loading.value = true;
-  try {
-    // 模拟API请求: GET /api/user/images/search?keyword=xxx&username=xxx
-    const response = await api.get(`/api/user/images/search?keyword=${imageSearchText.value}&username=${userForm.username}`);
-    userImages.value = response.data.map(img => ({
-      ...img,
-      url: img.url || img.data // 兼容不同的API返回格式
-    }));
-  } catch (error) {
-    ElMessage.error('搜索图片失败');
-    console.error('搜索图片失败:', error);
-  } finally {
-    loading.value = false;
-  }
-};
-
 // 查看图片详情
 const showImageDetails = (image) => {
   selectedImage.value = image;
@@ -466,17 +501,19 @@ const confirmDeleteImage = (image) => {
   deleteDialogVisible.value = true;
 };
 
-// 删除图片
+// 删除图片 - 修改为根据图片名称删除
 const deleteImage = async () => {
   if (!selectedImageForDelete.value) return;
   
   deleting.value = true;
   try {
-    // 模拟API请求: DELETE /api/images/{id}
-    await api.delete(`/api/images/${selectedImageForDelete.value.id}`);
+    // 使用正确的API参数格式
+    await api.delete('/api/data/delete_photo', {
+      params: { photoname: selectedImageForDelete.value.name }
+    });
     
     // 从列表中移除
-    userImages.value = userImages.value.filter(img => img.id !== selectedImageForDelete.value.id);
+    userImages.value = userImages.value.filter(img => img.name !== selectedImageForDelete.value.name);
     
     ElMessage.success('图片删除成功');
     deleteDialogVisible.value = false;
