@@ -104,6 +104,14 @@
           ></el-input>
         </div> -->
 
+        <div class="statistics-section">
+          <div class="section-header">
+            <h2>我的图片统计</h2>
+            <p>您上传的图片分类及置信度统计</p>
+          </div>
+          <div class="chart-container" ref="imageChartRef"></div>
+        </div>
+
         <div v-if="loading" class="loading-container">
           <el-icon class="loading-icon">
             <Loading />
@@ -186,10 +194,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted, nextTick, onUnmounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Loading, Picture, Delete } from '@element-plus/icons-vue';
 import api from '@/utils/api';
+import * as echarts from 'echarts/core';
+import { PieChart } from 'echarts/charts';
+import { LegendComponent, TooltipComponent, TitleComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 
 // 默认头像
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png';
@@ -280,6 +292,10 @@ const passwordRules = {
   ]
 };
 
+// 图表引用
+const imageChartRef = ref(null);
+let imageChart = null;
+
 // 初始化加载用户信息
 const fetchUserInfo = async () => {
   try {
@@ -324,12 +340,16 @@ const fetchUserInfo = async () => {
 const fetchUserImages = async () => {
   loading.value = true;
   try {
-    // 模拟API请求: GET /api/user/images?username=xxx
     const response = await api.get(`/api/data/get_photo`);
     userImages.value = response.data.map(img => ({
       ...img,
       url: img.url || img.data // 兼容不同的API返回格式
     }));
+    
+    // 更新图表
+    nextTick(() => {
+      initImageChart();
+    });
   } catch (error) {
     ElMessage.error('获取图片失败');
     console.error('获取图片失败:', error);
@@ -487,15 +507,129 @@ const deleteImage = async () => {
   }
 };
 
+// 初始化图片图表
+const initImageChart = () => {
+  if (imageChartRef.value) {
+    imageChart = echarts.init(imageChartRef.value);
+    updateImageChart();
+  }
+};
+
+// 更新图片统计图表
+const updateImageChart = () => {
+  if (!imageChart || userImages.value.length === 0) return;
+  
+  // 计算不同分类的图片数量
+  const bleachedCount = userImages.value.filter(img => img.status === 'bleached').length;
+  const healthyCount = userImages.value.length - bleachedCount;
+  
+  // 计算平均置信度
+  const avgBleachedConfidence = calculateAverage(
+    userImages.value.filter(img => img.status === 'bleached'), 
+    'confidence'
+  );
+  const avgHealthyConfidence = calculateAverage(
+    userImages.value.filter(img => img.status !== 'bleached'), 
+    'confidence'
+  );
+  
+  const option = {
+    title: {
+      text: '我的图片分类',
+      subtext: `共${userImages.value.length}张图片`,
+      left: 'center'
+    },
+    tooltip: {
+      trigger: 'item',
+      formatter: function(params) {
+        const confidenceInfo = params.name === '白化' ? 
+          `<br/>平均置信度: ${(avgBleachedConfidence * 100).toFixed(2)}%` : 
+          `<br/>平均置信度: ${(avgHealthyConfidence * 100).toFixed(2)}%`;
+        return `${params.seriesName} <br/>${params.name}: ${params.value} (${params.percent}%)${confidenceInfo}`;
+      }
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left',
+      data: ['白化', '健康']
+    },
+    series: [
+      {
+        name: '图片分类',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 10,
+          borderColor: '#fff',
+          borderWidth: 2
+        },
+        label: {
+          show: true,
+          formatter: function(params) {
+            const confidence = params.name === '白化' ? 
+              avgBleachedConfidence : avgHealthyConfidence;
+            return `${params.name}\n${(confidence * 100).toFixed(0)}% 置信度`;
+          }
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: '18',
+            fontWeight: 'bold'
+          }
+        },
+        data: [
+          { 
+            value: bleachedCount, 
+            name: '白化', 
+            itemStyle: { color: '#F56C6C' } 
+          },
+          { 
+            value: healthyCount, 
+            name: '健康', 
+            itemStyle: { color: '#67C23A' } 
+          }
+        ]
+      }
+    ]
+  };
+  
+  imageChart.setOption(option);
+};
+
+// 辅助函数：计算平均值
+const calculateAverage = (data, prop) => {
+  if (data.length === 0) return 0;
+  const sum = data.reduce((acc, item) => acc + (parseFloat(item[prop]) || 0), 0);
+  return sum / data.length;
+};
+
+// 窗口大小改变时重绘图表
+const handleResize = () => {
+  if (imageChart) imageChart.resize();
+};
+
 // 组件挂载时执行
 onMounted(() => {
   // 获取用户信息
   fetchUserInfo();
-
+  
   // 获取用户相关图片
-  nextTick(() => {
-    fetchUserImages();
-  });
+  fetchUserImages();
+  
+  // 添加窗口大小改变事件监听
+  window.addEventListener('resize', handleResize);
+});
+
+// 组件卸载时释放资源
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+  
+  if (imageChart) {
+    imageChart.dispose();
+    imageChart = null;
+  }
 });
 </script>
 
@@ -775,5 +909,19 @@ onMounted(() => {
   .details-image-container {
     margin-bottom: 16px;
   }
+}
+
+/* 添加图表容器样式 */
+.statistics-section {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container {
+  height: 300px;
+  width: 100%;
 }
 </style>

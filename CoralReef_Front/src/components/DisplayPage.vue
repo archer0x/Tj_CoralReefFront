@@ -44,6 +44,24 @@
       </div>
     </div>
 
+    <!-- 在搜索和筛选区域下方添加 -->
+    <div class="statistics-section">
+      <el-row :gutter="24">
+        <el-col :span="12">
+          <div class="stat-card">
+            <h3>图片分类统计</h3>
+            <div class="chart-container" ref="pieChartRef"></div>
+          </div>
+        </el-col>
+        <el-col :span="12">
+          <div class="stat-card">
+            <h3>置信度分布</h3>
+            <div class="chart-container" ref="barChartRef"></div>
+          </div>
+        </el-col>
+      </el-row>
+    </div>
+
     <!-- 图片展示区域 -->
     <div class="gallery-section">
       <div v-for="(images, month) in filteredGroupedImages" :key="month" class="month-group">
@@ -105,6 +123,13 @@
 <script>
 import api from '@/utils/api'; // 引入 api.js
 import { ElRow, ElCol, ElCard, ElTag, ElDialog, ElForm, ElFormItem, ElDatePicker, ElSelect, ElOption } from 'element-plus';
+import * as echarts from 'echarts/core';
+import { PieChart, BarChart } from 'echarts/charts';
+import { LegendComponent, TooltipComponent, TitleComponent, GridComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+// 注册 ECharts 组件
+echarts.use([PieChart, BarChart, LegendComponent, TooltipComponent, TitleComponent, GridComponent, CanvasRenderer]);
 
 export default {
   components: {
@@ -129,9 +154,12 @@ export default {
       selectedImage: null,
       dialogVisible: false,
       filterText: '',
+      pieChart: null,
+      barChart: null,
     };
   },
   methods: {
+    // 获取图片数据
     async fetchImages() {
       try {
         const response = await api.get('/api/data/get_photo');
@@ -141,13 +169,16 @@ export default {
           description: item.name,
           date: item.time.split(' ')[0], // 提取日期部分
           type: item.status, // 使用 status 作为种类
+          confidence: item.confidence || 0, // 添加置信度属性
         }));
 
         this.groupImagesByMonth();
+        this.initCharts(); // 初始化图表
       } catch (error) {
         console.error('获取图片数据失败:', error);
       }
     },
+    // 过滤图片
     filterImages() {
       const filteredImages = this.images.filter(image => {
         const matchesDate = this.selectedDate ? image.date === this.selectedDate : true;
@@ -165,10 +196,12 @@ export default {
         return groups;
       }, {});
     },
+    // 显示图片详情
     showImageDetails(image) {
       this.selectedImage = image;
       this.dialogVisible = true;
     },
+    // 按月份分组图片
     groupImagesByMonth() {
       this.groupedImages = this.images.reduce((groups, image) => {
         const month = image.date.slice(0, 7);
@@ -180,10 +213,186 @@ export default {
       }, {});
       this.filteredGroupedImages = this.groupedImages;
     },
+    // 初始化所有图表
+    initCharts() {
+      this.$nextTick(() => {
+        this.initPieChart();
+        this.initBarChart();
+      });
+    },
+    // 初始化饼图
+    initPieChart() {
+      const pieChartElement = this.$refs.pieChartRef;
+      if (!pieChartElement) return;
+      
+      this.pieChart = echarts.init(pieChartElement);
+      
+      // 计算数据
+      const bleachedCount = this.images.filter(img => img.type === 'bleached').length;
+      const healthyCount = this.images.length - bleachedCount;
+      
+      // 计算平均置信度
+      const bleachedData = this.images.filter(img => img.type === 'bleached');
+      const healthyData = this.images.filter(img => img.type !== 'bleached');
+      const avgBleachedConfidence = this.calculateAverage(bleachedData, 'confidence');
+      const avgHealthyConfidence = this.calculateAverage(healthyData, 'confidence');
+      
+      const option = {
+        tooltip: {
+          trigger: 'item',
+          formatter: function(params) {
+            const confidenceInfo = params.name === '白化' ? 
+              `<br/>平均置信度: ${(avgBleachedConfidence * 100).toFixed(2)}%` : 
+              `<br/>平均置信度: ${(avgHealthyConfidence * 100).toFixed(2)}%`;
+            return `${params.seriesName} <br/>${params.name}: ${params.value} (${params.percent}%)${confidenceInfo}`;
+          }
+        },
+        legend: {
+          orient: 'vertical',
+          left: 'left',
+        },
+        series: [
+          {
+            name: '珊瑚图片',
+            type: 'pie',
+            radius: '55%',
+            center: ['50%', '50%'],
+            data: [
+              { value: bleachedCount, name: '白化', itemStyle: { color: '#F56C6C' } },
+              { value: healthyCount, name: '健康', itemStyle: { color: '#67C23A' } }
+            ],
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)'
+              }
+            },
+            label: {
+              formatter: '{b}: {c} ({d}%)'
+            }
+          }
+        ]
+      };
+      
+      this.pieChart.setOption(option);
+    },
+    // 初始化条形图
+    initBarChart() {
+      const barChartElement = this.$refs.barChartRef;
+      if (!barChartElement) return;
+      
+      this.barChart = echarts.init(barChartElement);
+      
+      // 将置信度分组
+      const confidenceGroups = {
+        '90-100%': 0,
+        '80-90%': 0,
+        '70-80%': 0,
+        '60-70%': 0,
+        '<60%': 0
+      };
+      
+      this.images.forEach(img => {
+        const confidence = parseFloat(img.confidence || 0) * 100;
+        if (confidence >= 90) {
+          confidenceGroups['90-100%']++;
+        } else if (confidence >= 80) {
+          confidenceGroups['80-90%']++;
+        } else if (confidence >= 70) {
+          confidenceGroups['70-80%']++;
+        } else if (confidence >= 60) {
+          confidenceGroups['60-70%']++;
+        } else {
+          confidenceGroups['<60%']++;
+        }
+      });
+      
+      const option = {
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'shadow'
+          }
+        },
+        grid: {
+          left: '3%',
+          right: '4%',
+          bottom: '10%', // 增加底部空间以显示标签
+          containLabel: true
+        },
+        xAxis: [
+          {
+            type: 'category',
+            data: Object.keys(confidenceGroups),
+            axisTick: {
+              alignWithLabel: true
+            },
+            axisLabel: {
+              interval: 0, // 强制显示所有标签
+              rotate: 45, // 旋转标签以防止重叠
+              fontSize: 12,
+              margin: 8 // 增加与轴的距离
+            }
+          }
+        ],
+        yAxis: [
+          {
+            type: 'value'
+          }
+        ],
+        series: [
+          {
+            name: '图片数量',
+            type: 'bar',
+            barWidth: '60%',
+            data: Object.values(confidenceGroups).map((value, index) => {
+              // 根据置信度范围设置不同颜色
+              const colors = ['#67C23A', '#85CF4E', '#E6A23C', '#F56C6C', '#909399'];
+              return {
+                value: value,
+                itemStyle: {
+                  color: colors[index]
+                }
+              };
+            })
+          }
+        ]
+      };
+      
+      this.barChart.setOption(option);
+    },
+    // 计算平均值
+    calculateAverage(data, prop) {
+      if (data.length === 0) return 0;
+      const sum = data.reduce((acc, item) => acc + parseFloat(item[prop] || 0), 0);
+      return sum / data.length;
+    },
+    // 窗口大小改变处理
+    handleResize() {
+      if (this.pieChart) this.pieChart.resize();
+      if (this.barChart) this.barChart.resize();
+    }
   },
   mounted() {
     this.fetchImages(); // 组件挂载时获取数据
+    
+    // 添加窗口大小改变事件
+    window.addEventListener('resize', this.handleResize);
   },
+  beforeUnmount() {
+    // 清理图表实例
+    if (this.pieChart) {
+      this.pieChart.dispose();
+      this.pieChart = null;
+    }
+    if (this.barChart) {
+      this.barChart.dispose();
+      this.barChart = null;
+    }
+    
+    window.removeEventListener('resize', this.handleResize);
+  }
 };
 </script>
 
@@ -408,5 +617,31 @@ export default {
 .detail-value {
   font-size: 16px;
   color: #303133;
+}
+
+/* 添加图表相关样式 */
+.statistics-section {
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  height: 100%;
+}
+
+.stat-card h3 {
+  font-size: 16px;
+  font-weight: 500;
+  color: #303133;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.chart-container {
+  height: 300px;
+  width: 100%;
 }
 </style>

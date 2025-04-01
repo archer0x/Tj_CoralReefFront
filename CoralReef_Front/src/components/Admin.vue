@@ -1,6 +1,27 @@
 <template>
     <div class="page-background">
         <div class="admin-page">
+            <!-- 数据概览部分 -->
+            <div class="dashboard-row">
+                <!-- 用户统计卡片 -->
+                <div class="section dashboard-card">
+                    <div class="section-header">
+                        <h2>用户统计</h2>
+                        <p>用户状态分布</p>
+                    </div>
+                    <div class="chart-container" ref="userChartRef"></div>
+                </div>
+
+                <!-- 图片统计卡片 -->
+                <div class="section dashboard-card">
+                    <div class="section-header">
+                        <h2>图片统计</h2>
+                        <p>图片分类分布</p>
+                    </div>
+                    <div class="chart-container" ref="imageChartRef"></div>
+                </div>
+            </div>
+
             <!-- 用户管理部分 -->
             <div class="section user-management-section">
                 <div class="section-header">
@@ -152,10 +173,23 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted,nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Loading, Picture, Delete } from '@element-plus/icons-vue';
 import api from '@/utils/api';
+import * as echarts from 'echarts/core';
+import { PieChart } from 'echarts/charts';
+import { LegendComponent, TooltipComponent, TitleComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+// 注册 ECharts 组件
+echarts.use([PieChart, LegendComponent, TooltipComponent, TitleComponent, CanvasRenderer]);
+
+// 图表引用
+const userChartRef = ref(null);
+const imageChartRef = ref(null);
+let userChart = null;
+let imageChart = null;
 
 // 数据列表
 const users = ref([]);
@@ -220,6 +254,9 @@ const fetchUsers = async () => {
         const response = await api.post('/users/findList', { queryParams });
         users.value = response.data.data.records;
         console.log(users.value);
+        
+        // 更新用户统计图表
+        updateUserChart();
     } catch (error) {
         ElMessage.error('获取用户列表失败');
         console.error('获取用户列表失败:', error);
@@ -234,12 +271,186 @@ const fetchImages = async () => {
     try {
         const response = await api.get('/api/data/getAllPhoto');
         images.value = response.data;
+        
+        // 更新图片统计图表
+        updateImageChart();
     } catch (error) {
         ElMessage.error('获取图片列表失败');
         console.error('获取图片列表失败:', error);
     } finally {
         loadingImages.value = false;
     }
+};
+
+// 初始化用户图表
+const initUserChart = () => {
+    if (userChartRef.value) {
+        userChart = echarts.init(userChartRef.value);
+        updateUserChart();
+    }
+};
+
+// 初始化图片图表
+const initImageChart = () => {
+    if (imageChartRef.value) {
+        imageChart = echarts.init(imageChartRef.value);
+        updateImageChart();
+    }
+};
+
+// 更新用户统计图表
+const updateUserChart = () => {
+    if (!userChart || users.value.length === 0) return;
+    
+    // 计算启用和禁用用户数量
+    const enabledCount = users.value.filter(user => user.enabled).length;
+    const disabledCount = users.value.length - enabledCount;
+    
+    const option = {
+        title: {
+            text: '用户状态统计',
+            left: 'center'
+        },
+        tooltip: {
+            trigger: 'item',
+            formatter: '{a} <br/>{b}: {c} ({d}%)'
+        },
+        legend: {
+            orient: 'vertical',
+            left: 'left',
+            data: ['启用', '禁用']
+        },
+        series: [
+            {
+                name: '用户状态',
+                type: 'pie',
+                radius: ['40%', '70%'],
+                avoidLabelOverlap: false,
+                itemStyle: {
+                    borderRadius: 10,
+                    borderColor: '#fff',
+                    borderWidth: 2
+                },
+                label: {
+                    show: false,
+                    position: 'center'
+                },
+                emphasis: {
+                    label: {
+                        show: true,
+                        fontSize: '18',
+                        fontWeight: 'bold'
+                    }
+                },
+                labelLine: {
+                    show: false
+                },
+                data: [
+                    { value: enabledCount, name: '启用', itemStyle: { color: '#67C23A' } },
+                    { value: disabledCount, name: '禁用', itemStyle: { color: '#F56C6C' } }
+                ]
+            }
+        ]
+    };
+    
+    userChart.setOption(option);
+};
+
+// 更新图片统计图表
+const updateImageChart = () => {
+    if (!imageChart || images.value.length === 0) return;
+    
+    // 计算不同分类的图片数量
+    const bleachedCount = images.value.filter(img => img.status === 'bleached').length;
+    const healthyCount = images.value.length - bleachedCount;
+    
+    // 计算平均置信度
+    const avgBleachedConfidence = calculateAverage(
+        images.value.filter(img => img.status === 'bleached'), 
+        'confidence'
+    );
+    const avgHealthyConfidence = calculateAverage(
+        images.value.filter(img => img.status !== 'bleached'), 
+        'confidence'
+    );
+    
+    const option = {
+        title: {
+            text: '图片分类统计',
+            left: 'center'
+        },
+        tooltip: {
+            trigger: 'item',
+            formatter: function(params) {
+                // 添加置信度信息到提示框
+                const confidenceInfo = params.name === '白化' ? 
+                    `<br/>平均置信度: ${(avgBleachedConfidence * 100).toFixed(2)}%` : 
+                    `<br/>平均置信度: ${(avgHealthyConfidence * 100).toFixed(2)}%`;
+                return `${params.seriesName} <br/>${params.name}: ${params.value} (${params.percent}%)${confidenceInfo}`;
+            }
+        },
+        legend: {
+            orient: 'vertical',
+            left: 'left',
+            data: ['白化', '健康']
+        },
+        series: [
+            {
+                name: '图片分类',
+                type: 'pie',
+                radius: ['40%', '70%'],
+                avoidLabelOverlap: false,
+                itemStyle: {
+                    borderRadius: 10,
+                    borderColor: '#fff',
+                    borderWidth: 2
+                },
+                label: {
+                    show: true,
+                    formatter: function(params) {
+                        // 在标签中添加置信度信息
+                        const confidence = params.name === '白化' ? 
+                            avgBleachedConfidence : avgHealthyConfidence;
+                        return `${params.name}\n${(confidence * 100).toFixed(0)}% 置信度`;
+                    }
+                },
+                emphasis: {
+                    label: {
+                        show: true,
+                        fontSize: '18',
+                        fontWeight: 'bold'
+                    }
+                },
+                data: [
+                    { 
+                        value: bleachedCount, 
+                        name: '白化', 
+                        itemStyle: { color: '#F56C6C' } 
+                    },
+                    { 
+                        value: healthyCount, 
+                        name: '健康', 
+                        itemStyle: { color: '#67C23A' } 
+                    }
+                ]
+            }
+        ]
+    };
+    
+    imageChart.setOption(option);
+};
+
+// 辅助函数：计算平均值
+const calculateAverage = (data, prop) => {
+    if (data.length === 0) return 0;
+    const sum = data.reduce((acc, item) => acc + (item[prop] || 0), 0);
+    return sum / data.length;
+};
+
+// 窗口大小改变时重绘图表
+const handleResize = () => {
+    if (userChart) userChart.resize();
+    if (imageChart) imageChart.resize();
 };
 
 // 编辑用户
@@ -331,6 +542,30 @@ const formatDate = (date) => {
 onMounted(() => {
     fetchUsers();
     fetchImages();
+    
+    // 等待 DOM 更新后初始化图表
+    nextTick(() => {
+        initUserChart();
+        initImageChart();
+    });
+    
+    // 添加窗口大小改变事件监听
+    window.addEventListener('resize', handleResize);
+});
+
+// 组件卸载时释放资源
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+    
+    if (userChart) {
+        userChart.dispose();
+        userChart = null;
+    }
+    
+    if (imageChart) {
+        imageChart.dispose();
+        imageChart = null;
+    }
 });
 </script>
 
@@ -528,6 +763,38 @@ onMounted(() => {
 
     .details-image-container {
         margin-bottom: 16px;
+    }
+}
+
+/* 添加新的样式 */
+.dashboard-row {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.dashboard-card {
+    flex: 1;
+    min-width: 0;
+}
+
+.chart-container {
+    height: 300px;
+    width: 100%;
+}
+
+/* 响应式布局调整 */
+@media (max-width: 768px) {
+    .dashboard-row {
+        flex-direction: column;
+    }
+    
+    .dashboard-card {
+        width: 100%;
+    }
+    
+    .chart-container {
+        height: 250px;
     }
 }
 </style>

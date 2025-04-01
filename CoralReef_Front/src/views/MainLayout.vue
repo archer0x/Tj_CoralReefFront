@@ -15,13 +15,13 @@
                             <el-icon>
                                 <HomeFilled />
                             </el-icon>
-                            <span>上传图片</span>
+                            <span>单次上传</span>
                         </el-menu-item>
                         <el-menu-item index="2" class="custom-menu-item">
                             <el-icon>
                                 <PictureFilled />
                             </el-icon>
-                            <span>历史图片</span>
+                            <span>批量上传</span>
                         </el-menu-item>
                         <el-menu-item index="3" class="custom-menu-item">
                             <el-icon>
@@ -88,7 +88,8 @@ export default {
     },
     computed: {
         isAdminRoute() {
-            return this.$route.path === '/app/admin';
+            // return this.$route.path === '/app/admin';
+            return false; // 让任何页面都显示侧边栏
         }
     },
     methods: {

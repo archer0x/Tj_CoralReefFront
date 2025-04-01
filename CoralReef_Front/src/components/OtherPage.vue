@@ -6,14 +6,9 @@
                 <h2>批量上传</h2>
                 <p>上传多张珊瑚照片，系统将进行批量识别处理</p>
             </div>
-            
-            <el-upload 
-                class="custom-upload" 
-                drag 
-                action="http://localhost:8080/upload" 
-                multiple 
-                @success="handleUploadSuccess"
-            >
+
+            <el-upload class="custom-upload" drag action="http://localhost:8080/upload" multiple
+                @success="handleUploadSuccess">
                 <div class="upload-content">
                     <el-icon class="upload-icon"><upload-filled /></el-icon>
                     <div class="upload-text">
@@ -23,32 +18,43 @@
                 </div>
             </el-upload>
         </div>
-        
+
         <!-- 检测控制区域 -->
         <div class="detection-section">
             <div class="detection-header">
                 <div class="button-group">
                     <el-button type="primary" class="detection-button" @click="startDetection">
                         开始批量检测
-                        <el-icon class="el-icon--right"><Upload /></el-icon>
+                        <el-icon class="el-icon--right">
+                            <Upload />
+                        </el-icon>
                     </el-button>
-                    
+
                     <el-button type="success" @click="saveImages" :loading="saving" class="save-button">
                         保存图片
                     </el-button>
                 </div>
-                
+
                 <div class="progress-container">
-                    <el-progress 
-                        :percentage="progressPercentage" 
-                        :stroke-width="12" 
-                        status="success" 
-                        class="custom-progress"
-                    />
+                    <el-progress :percentage="progressPercentage" :stroke-width="12" status="success"
+                        class="custom-progress" />
                     <span class="progress-text" v-if="progressPercentage > 0">
                         处理中... {{ progressPercentage }}%
                     </span>
                 </div>
+            </div>
+        </div>
+
+        <!-- 在结果显示区域前添加图表区域，使用 showTable 控制显示 -->
+        <div class="chart-section" v-if="showTable">
+            <div class="section-header">
+                <h2>检测统计</h2>
+                <p>珊瑚白化识别结果统计分析</p>
+            </div>
+
+            <div class="stat-card">
+                <h3>置信度分布</h3>
+                <div class="chart-container" ref="barChartRef"></div>
             </div>
         </div>
 
@@ -58,14 +64,9 @@
                 <h2>检测结果</h2>
                 <p>珊瑚白化识别结果展示</p>
             </div>
-            
-            <el-table 
-                :data="tableData" 
-                :border="parentBorder" 
-                style="width: 100%"
-                class="custom-table"
-                row-key="uniqueId"
-            >
+
+            <el-table :data="tableData" :border="parentBorder" style="width: 100%" class="custom-table"
+                row-key="uniqueId">
                 <el-table-column type="expand">
                     <template #default="props">
                         <div class="expanded-content">
@@ -84,11 +85,13 @@
                         </div>
                     </template>
                 </el-table-column>
-                
+
                 <el-table-column label="图片名称" prop="image_name" min-width="150">
                     <template #default="scope">
                         <div class="image-name">
-                            <el-icon><Document /></el-icon>
+                            <el-icon>
+                                <Document />
+                            </el-icon>
                             <span>{{ scope.row.image_name }}</span>
                         </div>
                     </template>
@@ -97,38 +100,25 @@
                 <el-table-column label="图片展示" min-width="400">
                     <template #default="scope">
                         <div class="image-preview">
-                            <el-image 
-                                style="width: 400px; height: 200px; cursor: pointer;"
-                                :src="scope.row.save_path" 
-                                :preview-src-list="[scope.row.save_path]" 
-                                :initial-index="0" 
-                                :preview-teleported="true"
-                                fit="cover"
-                            />
+                            <el-image style="width: 400px; height: 200px; cursor: pointer;" :src="scope.row.save_path"
+                                :preview-src-list="[scope.row.save_path]" :initial-index="0" :preview-teleported="true"
+                                fit="cover" />
                         </div>
                     </template>
                 </el-table-column>
-                
+
                 <el-table-column label="操作" width="150" fixed="right">
                     <template #default="scope">
                         <div class="table-actions">
-                            <el-button 
-                                type="primary" 
-                                size="small" 
-                                @click="viewDetails(scope.row)"
-                                plain
-                                circle
-                            >
-                                <el-icon><View /></el-icon>
+                            <el-button type="primary" size="small" @click="viewDetails(scope.row)" plain circle>
+                                <el-icon>
+                                    <View />
+                                </el-icon>
                             </el-button>
-                            <el-button 
-                                type="success" 
-                                size="small" 
-                                @click="downloadImage(scope.row)"
-                                plain
-                                circle
-                            >
-                                <el-icon><Download /></el-icon>
+                            <el-button type="success" size="small" @click="downloadImage(scope.row)" plain circle>
+                                <el-icon>
+                                    <Download />
+                                </el-icon>
                             </el-button>
                         </div>
                     </template>
@@ -139,27 +129,36 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
-import { 
-    UploadFilled, 
-    Upload, 
-    Document, 
-    View, 
+import { ref, onMounted, nextTick } from "vue";
+import {
+    UploadFilled,
+    Upload,
+    Document,
+    View,
     Download
 } from "@element-plus/icons-vue";
 import { ElMessage } from 'element-plus';
-import api from '@/utils/api'
+import api from '@/utils/api';
+import * as echarts from 'echarts/core';
+import { BarChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent, TitleComponent, LegendComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+// 注册 ECharts 组件
+echarts.use([BarChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent, CanvasRenderer]);
 
 const parentBorder = ref(true);
 const tableData = ref([]);
 const showTable = ref(false);  // 控制表格显示的状态
 const progressPercentage = ref(0);
 const saving = ref(false);
+const barChartRef = ref(null);
+let barChart = null;
 
 const startDetection = async () => {
     // 重置进度条
     progressPercentage.value = 0;
-    
+
     // 模拟进度增长
     const intervalId = setInterval(() => {
         // 确保进度不会超过100%
@@ -168,13 +167,13 @@ const startDetection = async () => {
         } else if (progressPercentage.value < 100) {
             progressPercentage.value = 100;
         }
-        
+
         // 当进度达到100%时清除计时器
         if (progressPercentage.value >= 100) {
             clearInterval(intervalId);
         }
     }, 50);
-    
+
     try {
         const response = await api.post('/api/yolo/multiple');
         tableData.value = response.data.map((item, index) => ({
@@ -182,13 +181,148 @@ const startDetection = async () => {
             uniqueId: item.id || `row-${index}-${Date.now()}`
         }));
         showTable.value = true;
-        
+
         // 确保进度条完成
         progressPercentage.value = 100;
+
+        // 初始化图表
+        nextTick(() => {
+            initBarChart();
+        });
     } catch (error) {
         console.error('Error fetching tableData:', error);
         progressPercentage.value = 0; // 出错时重置进度条
     }
+};
+
+// 初始化柱状图
+const initBarChart = () => {
+    // 确保图表容器和数据存在
+    if (!barChartRef.value || tableData.value.length === 0) return;
+
+    console.log(tableData.value);
+
+    // 处理图表实例
+    if (barChart) {
+        barChart.dispose();
+    }
+
+    barChart = echarts.init(barChartRef.value);
+
+    // 将置信度分组
+    const confidenceGroups = {
+        '90-100%': 0,
+        '80-90%': 0,
+        '70-80%': 0,
+        '60-70%': 0,
+        '<60%': 0
+    };
+
+    // 遍历 tableData
+    tableData.value.forEach(item => {
+        if (Array.isArray(item.detections)) {
+            item.detections.forEach(detection => {
+                const confidence = parseFloat(detection.confidence || 0) * 100;
+
+                if (confidence >= 90) {
+                    confidenceGroups['90-100%']++;
+                } else if (confidence >= 80) {
+                    confidenceGroups['80-90%']++;
+                } else if (confidence >= 70) {
+                    confidenceGroups['70-80%']++;
+                } else if (confidence >= 60) {
+                    confidenceGroups['60-70%']++;
+                } else {
+                    confidenceGroups['<60%']++;
+                }
+            });
+        }
+    });
+
+    // 设置图表选项
+    const option = {
+        title: {
+            text: '识别置信度分布',
+            left: 'center'
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            },
+            formatter: function (params) {
+                // 计算当前置信度区间的数量占总数的百分比
+                const total = tableData.value.length;
+                const count = params[0].value;
+                const percent = ((count / total) * 100).toFixed(1);
+                return `${params[0].name}<br/>识别区块数量: ${count} (${percent}%)`;
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '15%', // 增加底部空间以显示标签
+            containLabel: true
+        },
+        xAxis: [
+            {
+                type: 'category',
+                data: Object.keys(confidenceGroups),
+                axisTick: {
+                    alignWithLabel: true
+                },
+                axisLabel: {
+                    interval: 0, // 强制显示所有标签
+                    rotate: 45, // 旋转标签以防止重叠
+                    fontSize: 12,
+                    margin: 15 // 增加与轴的距离
+                }
+            }
+        ],
+        yAxis: [
+            {
+                type: 'value',
+                name: '图片数量',
+                nameLocation: 'middle',
+                nameGap: 35
+            }
+        ],
+        series: [
+            {
+                name: '图片数量',
+                type: 'bar',
+                barWidth: '60%',
+                data: Object.values(confidenceGroups).map((value, index) => {
+                    // 根据置信度范围设置不同颜色
+                    const colors = ['#67C23A', '#85CF4E', '#E6A23C', '#F56C6C', '#909399'];
+                    return {
+                        value: value,
+                        itemStyle: {
+                            color: colors[index]
+                        }
+                    };
+                })
+            }
+        ]
+    };
+
+    barChart.setOption(option);
+};
+
+// 处理窗口大小改变
+const handleResize = () => {
+    if (barChart) {
+        barChart.resize();
+    }
+};
+
+// 组件卸载时的清理工作
+const onUnmounted = () => {
+    if (barChart) {
+        barChart.dispose();
+        barChart = null;
+    }
+    window.removeEventListener('resize', handleResize);
 };
 
 const handleUploadSuccess = (response, file, fileList) => {
@@ -202,24 +336,24 @@ const viewDetails = (row) => {
 
 const downloadImage = (row) => {
     console.log('下载图片:', row);
-    
+
     // 创建一个fetch请求获取图片blob数据
     fetch(row.save_path)
         .then(response => response.blob())
         .then(blob => {
             // 创建一个blob URL
             const blobUrl = window.URL.createObjectURL(blob);
-            
+
             // 创建下载链接
             const link = document.createElement('a');
             link.href = blobUrl;
             link.download = row.image_name || 'downloaded-image.jpg'; // 设置下载文件名
             link.style.display = 'none';
-            
+
             // 添加到DOM，触发点击，然后移除
             document.body.appendChild(link);
             link.click();
-            
+
             // 清理
             setTimeout(() => {
                 document.body.removeChild(link);
@@ -244,7 +378,7 @@ const saveImages = async () => {
     try {
         // 调用保存图片接口
         await api.post('http://localhost:8080/api/data/save_photo');
-        
+
         // 显示成功消息
         ElMessage.success('保存成功');
     } catch (error) {
@@ -254,6 +388,11 @@ const saveImages = async () => {
         saving.value = false;
     }
 };
+
+// 监听窗口大小变化
+onMounted(() => {
+    window.addEventListener('resize', handleResize);
+});
 </script>
 
 <style scoped>
@@ -515,18 +654,48 @@ const saveImages = async () => {
         flex-direction: column;
         align-items: flex-start;
     }
-    
+
     .button-group {
         width: 100%;
         margin-bottom: 16px;
     }
-    
-    .detection-button, .save-button {
+
+    .detection-button,
+    .save-button {
         flex: 1;
     }
-    
+
     .custom-table :deep(.el-table__expanded-cell) {
         padding: 15px;
     }
+}
+
+/* 图表区域样式 */
+.chart-section {
+    background-color: white;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-card {
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+    background-color: #f9f9f9;
+}
+
+.stat-card h3 {
+    font-size: 16px;
+    font-weight: 500;
+    color: #303133;
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+.chart-container {
+    height: 300px;
+    width: 100%;
 }
 </style>

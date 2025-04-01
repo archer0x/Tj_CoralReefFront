@@ -247,9 +247,12 @@ const handleMouseMove = (e) => {
 
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const rect = canvas.getBoundingClientRect(); // 获取 canvas 显示尺寸
+  const scaleX = canvas.width / rect.width; // 计算 X 方向缩放比例
+  const scaleY = canvas.height / rect.height; // 计算 Y 方向缩放比例
+
+  const x = (event.clientX - rect.left) * scaleX; // 计算实际 X 坐标
+  const y = (event.clientY - rect.top) * scaleY; // 计算实际 Y 坐标
 
   cropEnd.value = { x, y };
 
