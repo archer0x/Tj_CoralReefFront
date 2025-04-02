@@ -373,7 +373,6 @@ const updateImageChart = () => {
         images.value.filter(img => img.status !== 'bleached'), 
         'confidence'
     );
-    
     const option = {
         title: {
             text: '图片分类统计',
